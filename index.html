@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BolsaQuery — Consulta de Ativos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0c0f;
+      --surface:  #111419;
+      --border:   #1e2430;
+      --accent:   #00e5a0;
+      --accent2:  #00aaff;
+      --red:      #ff4d6d;
+      --yellow:   #ffd166;
+      --text:     #e2e8f0;
+      --muted:    #5a6a82;
+      --card-bg:  #13171f;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,160,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,160,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,12,15,.85);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -.5px; }
+    .logo span { color: var(--accent); }
+
+    .badge {
+      font-family: 'Space Mono', monospace;
+      font-size: .65rem;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 3px 9px;
+      border-radius: 3px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: pulse-border 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%,100% { box-shadow: 0 0 0 0 rgba(0,229,160,0); }
+      50%      { box-shadow: 0 0 0 4px rgba(0,229,160,.15); }
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 50px 20px 80px;
+    }
+
+    .hero { text-align: center; margin-bottom: 48px; }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+
+    .hero h1 em { font-style: normal; color: var(--accent); }
+
+    .hero p {
+      color: var(--muted);
+      font-size: .95rem;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .token-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 40px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .token-wrap .icon { font-size: 1.3rem; flex-shrink: 0; }
+
+    .token-wrap p {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.6;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .token-wrap p a { color: var(--accent2); text-decoration: none; }
+
+    .token-wrap input {
+      margin-top: 8px;
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: .8rem;
+      outline: none;
+    }
+
+    .token-wrap input:focus { border-color: var(--accent2); }
+
+    .search-wrap { display: flex; gap: 10px; margin-bottom: 16px; }
+
+    .search-wrap input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 18px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: .95rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .search-wrap input::placeholder { color: var(--muted); text-transform: none; }
+
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,160,.1);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 14px 24px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,229,160,.3); }
+    .btn:active { transform: translateY(0); }
+
+    .hint {
+      font-family: 'Space Mono', monospace;
+      font-size: .72rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hint strong { color: var(--accent); }
+
+    .loading { display: none; text-align: center; padding: 40px; }
+    .loading.active { display: block; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p {
+      font-family: 'Space Mono', monospace;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    .error-box {
+      display: none;
+      background: rgba(255,77,109,.08);
+      border: 1px solid rgba(255,77,109,.3);
+      border-radius: 8px;
+      padding: 16px 20px;
+      color: var(--red);
+      font-family: 'Space Mono', monospace;
+      font-size: .85rem;
+      margin-bottom: 24px;
+    }
+
+    .error-box.active { display: block; }
+
+    #results { display: none; }
+    #results.active { display: block; }
+
+    .asset-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      animation: fadeUp .4s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .asset-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .ticker-group { display: flex; flex-direction: column; gap: 4px; }
+
+    .ticker {
+      font-family: 'Space Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+    }
+
+    .company-name { color: var(--muted); font-size: .85rem; font-weight: 600; }
+
+    .price-group { text-align: right; }
+
+    .price {
+      font-family: 'Space Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .change {
+      font-family: 'Space Mono', monospace;
+      font-size: .9rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+
+    .change.up   { background: rgba(0,229,160,.12);  color: var(--accent); }
+    .change.down { background: rgba(255,77,109,.12); color: var(--red); }
+    .change.flat { background: rgba(255,209,102,.12);color: var(--yellow); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .stat-label {
+      font-family: 'Space Mono', monospace;
+      font-size: .65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: 'Space Mono', monospace;
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    .range-wrap { margin-top: 16px; }
+
+    .range-label {
+      font-family: 'Space Mono', monospace;
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .range-bar-outer {
+      position: relative;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .range-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+
+    .range-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+    }
+
+    .range-extremes {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Space Mono', monospace;
+      font-size: .7rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* ── chart card ── */
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 24px 20px;
+      margin-bottom: 24px;
+      animation: fadeUp .5s ease .1s both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+    }
+
+    .chart-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .chart-title {
+      font-family: 'Space Mono', monospace;
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .period-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .period-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: .68rem;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: all .15s;
+      letter-spacing: 1px;
+    }
+
+    .period-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .period-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+      font-weight: 700;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    .chart-loading {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      background: rgba(19,23,31,.8);
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: .75rem;
+      color: var(--muted);
+      gap: 10px;
+    }
+
+    .chart-loading.active { display: flex; }
+
+    .chart-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    .about-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .about-box p {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      font-family: 'Space Mono', monospace;
+      font-size: .7rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--accent2); text-decoration: none; }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 20px; }
+      main   { padding: 30px 16px 60px; }
+      .price, .ticker { font-size: 1.4rem; }
+      .asset-card, .chart-card { padding: 18px; }
+      .chart-container { height: 200px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Bolsa<span>Query</span></div>
+  <div class="badge">LIVE DATA</div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Consulta de <em>Ativos</em><br/>da Bolsa</h1>
+    <p>// dados em tempo real via brapi.dev</p>
+  </div>
+
+  <div class="token-wrap">
+    <div class="icon">🔑</div>
+    <div style="flex:1">
+      <p>
+        Para dados ilimitados, insira seu token da <a href="https://brapi.dev" target="_blank">brapi.dev</a> (gratuito).
+        Sem token, a API permite poucas consultas por dia.
+      </p>
+      <input type="text" id="tokenInput" placeholder="Cole seu token aqui (opcional)"/>
+    </div>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="tickerInput" placeholder="Ex: PETR4, VALE3, BBAS3, ITUB4…" maxlength="10"/>
+    <button class="btn" onclick="buscar()">Consultar</button>
+  </div>
+  <p class="hint">Digite o <strong>ticker</strong> do ativo e pressione Consultar</p>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Buscando dados do ativo…</p>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div id="results">
+    <div class="asset-card" id="assetCard"></div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <div class="chart-title">Histórico de Preços</div>
+        <div class="period-btns" id="periodBtns">
+          <button class="period-btn" data-range="5d"  data-interval="1d">1S</button>
+          <button class="period-btn active" data-range="1mo" data-interval="1d">1M</button>
+          <button class="period-btn" data-range="3mo" data-interval="1wk">3M</button>
+          <button class="period-btn" data-range="6mo" data-interval="1wk">6M</button>
+          <button class="period-btn" data-range="1y"  data-interval="1mo">1A</button>
+          <button class="period-btn" data-range="5y"  data-interval="1mo">5A</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="priceChart"></canvas>
+        <div class="chart-loading" id="chartLoading">
+          <div class="chart-spinner"></div>
+          Carregando gráfico…
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Dados fornecidos por <a href="https://brapi.dev" target="_blank">brapi.dev</a> &mdash;
+  Apenas para fins informativos, não é recomendação de investimento.
+</footer>
+
+<script>
+  const tickerInput  = document.getElementById('tickerInput');
+  const tokenInput   = document.getElementById('tokenInput');
+  const loading      = document.getElementById('loading');
+  const errorBox     = document.getElementById('errorBox');
+  const results      = document.getElementById('results');
+  const assetCard    = document.getElementById('assetCard');
+  const chartLoading = document.getElementById('chartLoading');
+  const periodBtns   = document.getElementById('periodBtns');
+
+  let priceChart    = null;
+  let currentTicker = '';
+
+  tickerInput.addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
+
+  periodBtns.addEventListener('click', e => {
+    const btn = e.target.closest('.period-btn');
+    if (!btn || !currentTicker) return;
+    periodBtns.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    carregarGrafico(currentTicker, btn.dataset.range, btn.dataset.interval);
+  });
+
+  // ── helpers ──────────────────────────────────────────────
+
+  function fmt(val, prefix = 'R$ ', decimals = 2) {
+    if (val == null || isNaN(val)) return '—';
+    return prefix + Number(val).toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  }
+
+  function fmtNum(val) {
+    if (val == null || isNaN(val)) return '—';
+    return Number(val).toLocaleString('pt-BR');
+  }
+
+  function fmtB(val) {
+    if (val == null || isNaN(val)) return '—';
+    const b = val / 1e9;
+    if (b >= 1) return 'R$ ' + b.toFixed(2).replace('.', ',') + ' Bi';
+    return 'R$ ' + (val / 1e6).toFixed(1).replace('.', ',') + ' Mi';
+  }
+
+  function changeClass(val) {
+    if (val > 0) return 'up';
+    if (val < 0) return 'down';
+    return 'flat';
+  }
+
+  function changeArrow(val) {
+    if (val > 0) return '▲';
+    if (val < 0) return '▼';
+    return '●';
+  }
+
+  function show(el) { (Array.isArray(el) ? el : [el]).forEach(e => e.classList.add('active')); }
+  function hide(el) { (Array.isArray(el) ? el : [el]).forEach(e => e.classList.remove('active')); }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠ ' + msg;
+    show(errorBox);
+  }
+
+  function token() { return tokenInput.value.trim(); }
+
+  function buildUrl(path, params = {}) {
+    const tk = token();
+    if (tk) params.token = tk;
+    const qs = new URLSearchParams(params).toString();
+    return `https://brapi.dev/api${path}${qs ? '?' + qs : ''}`;
+  }
+
+  // ── search ───────────────────────────────────────────────
+
+  async function buscar() {
+    const ticker = tickerInput.value.trim().toUpperCase();
+    if (!ticker) { showError('Por favor, informe o ticker do ativo.'); return; }
+
+    currentTicker = ticker;
+    hide([errorBox, results]);
+    show(loading);
+
+    const url = buildUrl(`/quote/${ticker}`, { range: '1d', interval: '1d', fundamental: 'true' });
+
+    try {
+      const res  = await fetch(url);
+      const data = await res.json();
+
+      if (!res.ok || !data.results || !data.results.length)
+        throw new Error(data.message || 'Ativo não encontrado. Verifique o ticker.');
+
+      renderAsset(data.results[0]);
+      show(results);
+
+      periodBtns.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      periodBtns.querySelector('[data-range="1mo"]').classList.add('active');
+      carregarGrafico(ticker, '1mo', '1d');
+
+    } catch (err) {
+      showError(err.message || 'Erro ao consultar o ativo.');
+    } finally {
+      hide([loading]);
+    }
+  }
+
+  // ── render info ───────────────────────────────────────────
+
+  function renderAsset(d) {
+    const chgClass = changeClass(d.regularMarketChangePercent);
+    const arrow    = changeArrow(d.regularMarketChangePercent);
+    const chgPct   = d.regularMarketChangePercent != null
+      ? `${arrow} ${Math.abs(d.regularMarketChangePercent).toFixed(2).replace('.', ',')}%`
+      : '—';
+
+    const low  = d.regularMarketDayLow   ?? 0;
+    const high = d.regularMarketDayHigh  ?? 0;
+    const curr = d.regularMarketPrice    ?? 0;
+    const pct  = (high !== low) ? Math.max(0, Math.min(100, ((curr - low) / (high - low)) * 100)) : 50;
+
+    assetCard.innerHTML = `
+      <div class="card-header">
+        <div class="ticker-group">
+          <div class="ticker">${d.symbol ?? '—'}</div>
+          <div class="company-name">${d.longName ?? d.shortName ?? '—'}</div>
+        </div>
+        <div class="price-group">
+          <div class="price">${fmt(d.regularMarketPrice)}</div>
+          <div class="change ${chgClass}">${chgPct}</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-label">Abertura</div><div class="stat-value">${fmt(d.regularMarketOpen)}</div></div>
+        <div class="stat"><div class="stat-label">Fechamento anterior</div><div class="stat-value">${fmt(d.regularMarketPreviousClose)}</div></div>
+        <div class="stat"><div class="stat-label">Mínima (dia)</div><div class="stat-value">${fmt(d.regularMarketDayLow)}</div></div>
+        <div class="stat"><div class="stat-label">Máxima (dia)</div><div class="stat-value">${fmt(d.regularMarketDayHigh)}</div></div>
+        <div class="stat"><div class="stat-label">Volume</div><div class="stat-value">${fmtNum(d.regularMarketVolume)}</div></div>
+        <div class="stat"><div class="stat-label">Market Cap</div><div class="stat-value">${fmtB(d.marketCap)}</div></div>
+        <div class="stat"><div class="stat-label">Mín. 52 semanas</div><div class="stat-value">${fmt(d.fiftyTwoWeekLow)}</div></div>
+        <div class="stat"><div class="stat-label">Máx. 52 semanas</div><div class="stat-value">${fmt(d.fiftyTwoWeekHigh)}</div></div>
+        <div class="stat"><div class="stat-label">P/L</div><div class="stat-value">${d.priceEarnings != null ? Number(d.priceEarnings).toFixed(2).replace('.',',') : '—'}</div></div>
+        <div class="stat"><div class="stat-label">Dividend Yield</div><div class="stat-value">${d.dividendYield != null ? Number(d.dividendYield).toFixed(2).replace('.',',') + '%' : '—'}</div></div>
+      </div>
+
+      <hr class="divider"/>
+
+      <div class="range-wrap">
+        <div class="range-label">Posição no intervalo do dia</div>
+        <div class="range-bar-outer">
+          <div class="range-bar-fill" style="width:${pct}%"></div>
+          <div class="range-dot" style="left:${pct}%"></div>
+        </div>
+        <div class="range-extremes">
+          <span>${fmt(d.regularMarketDayLow)}</span>
+          <span>${fmt(d.regularMarketDayHigh)}</span>
+        </div>
+      </div>
+
+      ${d.longBusinessSummary ? `
+        <hr class="divider"/>
+        <div class="about-box">
+          <div class="stat-label" style="margin-bottom:8px">Sobre a empresa</div>
+          <p>${d.longBusinessSummary}</p>
+        </div>` : ''}
+    `;
+  }
+
+  // ── chart ─────────────────────────────────────────────────
+
+  async function carregarGrafico(ticker, range, interval) {
+    show(chartLoading);
+
+    const url = buildUrl(`/quote/${ticker}`, { range, interval, fundamental: 'false' });
+
+    try {
+      const res  = await fetch(url);
+      const data = await res.json();
+
+      if (!res.ok || !data.results || !data.results.length) throw new Error();
+
+      const hist = data.results[0].historicalDataPrice ?? [];
+      if (!hist.length) throw new Error();
+
+      const labels = hist.map(p => {
+        const d = new Date(p.date * 1000);
+        if (range === '5d')  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' });
+        if (range === '1mo') return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+        return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      });
+
+      const prices  = hist.map(p => p.close);
+      const isUp    = prices[prices.length - 1] >= prices[0];
+      const lineClr = isUp ? '#00e5a0' : '#ff4d6d';
+
+      desenharGrafico(labels, prices, lineClr, ticker);
+
+    } catch (_) {
+      // silently fail — chart just won't render
+    } finally {
+      hide(chartLoading);
+    }
+  }
+
+  function desenharGrafico(labels, prices, lineColor, ticker) {
+    const canvas = document.getElementById('priceChart');
+    const ctx    = canvas.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, lineColor + '44');
+    grad.addColorStop(1, lineColor + '00');
+
+    if (priceChart) { priceChart.destroy(); priceChart = null; }
+
+    priceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: ticker,
+          data: prices,
+          borderColor: lineColor,
+          borderWidth: 2,
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: lineColor,
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e2430',
+            titleColor: '#5a6a82',
+            bodyColor: '#e2e8f0',
+            borderColor: '#2a3444',
+            borderWidth: 1,
+            padding: 10,
+            titleFont: { family: 'Space Mono', size: 10 },
+            bodyFont: { family: 'Space Mono', size: 12, weight: 'bold' },
+            callbacks: {
+              label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#1e2430' },
+            ticks: {
+              color: '#5a6a82',
+              font: { family: 'Space Mono', size: 10 },
+              maxTicksLimit: 8,
+              maxRotation: 0,
+            }
+          },
+          y: {
+            position: 'right',
+            grid: { color: '#1e2430' },
+            ticks: {
+              color: '#5a6a82',
+              font: { family: 'Space Mono', size: 10 },
+              callback: v => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+            }
+          }
+        }
+      }
+    });
+  }
+</script>
+</body>
+</html>
